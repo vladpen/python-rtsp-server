@@ -9,7 +9,7 @@ for several IP-cameras and multiple clients.
 * Minimum client connection latency.
 * Low CPU load.
 * Proxying streams from IP cameras to an unlimited number of clients in the local network, the ability to limit the number of web clients.
-* Ability to write to hard disk, with fragmentation and daily rotation.
+* Ability to save to hard disk, with fragmentation and daily rotation.
 * Restoring of connection with cameras and recording to disk after a possible disconnection of cameras.
 
 ### Requirements:
