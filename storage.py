@@ -71,9 +71,8 @@ class Storage:
         await p.wait()
         self.main_process.kill()
 
-        # Delete all files and subdirectories older than "storage_period_days"
-        cmd = f'find {Config.storage_path} -type d -mtime +{Config.storage_period_days} -delete; ' \
-            f'find {Config.storage_path} -type f -mtime +{Config.storage_period_days} -delete'
+        # Delete all subdirectories older than "storage_period_days"
+        cmd = f'find {Config.storage_path} -type d -mtime +{Config.storage_period_days} -exec rm -rf {{}} \;'
         proc = await asyncio.create_subprocess_shell(cmd)
         await proc.wait()
 
