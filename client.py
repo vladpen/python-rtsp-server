@@ -1,5 +1,3 @@
-# https://docs.python.org/3/library/asyncio-protocol.html
-
 import asyncio
 import re
 import string
@@ -30,8 +28,6 @@ class Client:
         Log.write(f'Client: start listening {host}:{Config.rtsp_port}')
 
         server = await asyncio.start_server(_handle, host, Config.rtsp_port)
-        # addrs = ', '.join(str(sock.getsockname()) for sock in server.sockets)
-        # print(f'Serving on {addrs}')
         async with server:
             await server.serve_forever()
 
@@ -43,7 +39,6 @@ class Client:
         except Exception:
             Log.print(f"Client: warning: can't decode this ask, skipped:\n{data}")
             return
-            # raise RuntimeError(f"can't decode this ask:\n{data}")
 
         option = await self._request(ask)
         self.session_id = self._get_session_id(ask)

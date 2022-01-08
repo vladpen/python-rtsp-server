@@ -15,8 +15,8 @@ class Storage:
         while True:
             try:
                 await self._save_fragment()
-            except Exception:
-                Log.print(f'Storage: error: can\'t save fragment "{self.hash}", trying again')
+            except Exception as e:
+                Log.print(f'Storage: error: can\'t save fragment "{self.hash}", trying again ({e})')
                 await asyncio.sleep(5)
 
     async def _save_fragment(self):
@@ -30,12 +30,14 @@ class Storage:
 
         await self._mkdir(path)
 
-        if cfg['storage_save_from_camera']:
-            url = cfg['url']
+        if 'storage_command' in cfg and cfg['storage_command']:
+            cmd = cfg['storage_command']
+        elif hasattr(Config, 'storage_command') and Config.storage_command:
+            cmd = Config.storage_command
         else:
-            url = f'rtsp://localhost:{Config.rtsp_port}/{self.hash}'
+            raise RuntimeError('invalid "storage_command" in _config.py')
 
-        cmd = cfg['storage_command'].format(url, f'{path}/{filename}')
+        cmd = cmd.replace('{url}', cfg['url']).replace('{filename}', f'{path}/{filename}')
 
         try:
             await asyncio.wait_for(

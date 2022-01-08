@@ -8,20 +8,22 @@ class Config:
 
     # Camera(s) settings.
     #    * The keys of this dictionary will be called "camera hash".
-    #    * "storage_command" must contains two pairs of parentheses (for URL and output file name).
+    #    * "path" can be used for the storage.
+    #    * "url" must contains at least <protocol>://<host>:<port>
+    #    * Optional: "storage_command" must contains two pairs of parentheses (for URL and output file name).
+    #       Overrides the same named command from the "storage" section.
     #       Examples:
-    #           ffmpeg -i {} -c copy {}.avi
-    #           mencoder {} -ovc copy -o {}.avi
-    #           openRTSP -b 10000000 -i -w 1920 -h 1080 -f 15 {} > {}.avi
+    #           ffmpeg -i {url} -c copy {filename}.mkv
+    #           mencoder {url} -ovc copy -o {filename}.avi
+    #           openRTSP -b 10000000 -i -w 1920 -h 1080 -f 15 {url} > {filename}.avi
     #       Note that these utilities aren't included an must be installed yourself.
-    #    * "storage_save_from_camera". You can save the stream from camera directly, as well as from this server.
     #
     cameras = {
         'some-URL-compatible-string/including-UTF-characters': {
             'path': 'some folder in the storage_path',
             'url': 'rtsp://<login>:<password>@<host>:554/<uri>',
-            'storage_command': 'any *nix command for saving rtsp stream to a file',
-            'storage_save_from_camera': True},
+            # 'storage_command': 'any *nix command for saving rtsp stream to a file',
+        },
     }
 
     # Force UDP or TCP protocol globally
@@ -39,6 +41,7 @@ class Config:
     # Attention!
     # All files and subdirectories older than "storage_period_days" in this folder will be deleted!
     storage_path = 'absolute path to video monitoring storage folder'
+    storage_command = 'ffmpeg -i {url} -c copy -v warning {filename}.mkv'
     storage_fragment_secs = 600
     storage_period_days = 14
     storage_enable = False
