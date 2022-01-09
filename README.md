@@ -63,4 +63,4 @@ sudo systemctl enable python-rtsp-server
 sudo systemctl start python-rtsp-server
 ```
 
-*Copyright (c) 2021 vladpen under MIT license. Use it with absolutely no warranty.*
+*Copyright (c) 2021-2022 vladpen under MIT license. Use it with absolutely no warranty.*
