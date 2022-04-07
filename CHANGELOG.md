@@ -1,6 +1,8 @@
-## [Unreleased] - 2022-04-06:
+## [Unreleased] - 2022-04-08:
 
-Fix critical error in the "storage" module
+Storage:
+* Fixed critical error
+* Improved files rotation
 
 ## [Unreleased] - 2022-01-08:
 

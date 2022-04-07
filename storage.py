@@ -16,7 +16,7 @@ class Storage:
             try:
                 await self._save_fragment()
             except Exception as e:
-                Log.print(f'Storage: error: can\'t save fragment "{self.hash}", trying again ({e})')
+                Log.print(f'Storage: ERROR: can\'t save fragment "{self.hash}", trying again ({repr(e)})')
                 await asyncio.sleep(5)
 
     async def _save_fragment(self):
@@ -38,15 +38,16 @@ class Storage:
             raise RuntimeError('invalid "storage_command" in _config.py')
 
         cmd = cmd.replace('{url}', cfg['url']).replace('{filename}', f'{path}/{filename}')
-
         try:
-            await asyncio.wait_for(
-                self._execute(cmd),
-                timeout=Config.storage_fragment_secs)
-        except asyncio.TimeoutError:
-            pass
+            _done, pending = await asyncio.wait(
+                [self._execute(cmd)],
+                timeout=Config.storage_fragment_secs,
+                return_when=asyncio.FIRST_COMPLETED)
 
-        await self._kill()
+            for t in pending:
+                t.cancel()
+        finally:
+            await self._kill('fragment saved')
 
     async def _execute(self, cmd):
         """ Run given cmd in background
@@ -60,9 +61,10 @@ class Storage:
 
         _stdout, stderr = await self.main_process.communicate()
         if stderr:
-            Log.print(f"Storage: error: can't execute command ({self.hash}):\n{cmd}")
+            Log.print(f"Storage: ERROR: can't execute command ({self.hash}):\n{cmd} ({stderr.decode()})")
+            await asyncio.sleep(1)
 
-    async def _kill(self):
+    async def _kill(self, msg):
         """ Kill subprocess(es) and clean old storage files
         """
         # Main process may call subprocess(es), kill them all.
@@ -77,10 +79,10 @@ class Storage:
         try:
             cfg = Config.cameras[self.hash]
             await self._delete_old_dir(f'{Config.storage_path}/{cfg["path"]}')
-        except Exception:
-            Log.print(f'Storage: cleanup error "{self.hash}"')
+        except Exception as e:
+            Log.print(f'Storage: cleanup ERROR "{self.hash}" ({repr(e)})')
 
-        Log.print(f'Storage: process {self.main_process.pid} killed, "{self.hash}" folder cleaned')
+        Log.print(f'Storage: process {self.main_process.pid} killed, "{self.hash}" folder cleaned ({msg})')
 
     async def _delete_old_dir(self, path):
         cmd = f'ls -d {path}/*/'
@@ -116,8 +118,8 @@ class Storage:
             await asyncio.sleep(Config.watchdog_interval)
             try:
                 await self._watchdog()
-            except Exception:
-                Log.print(f'Storage: watchdog error: can\'t restart storage "{self.hash}"')
+            except Exception as e:
+                Log.print(f'Storage: watchdog ERROR: can\'t restart storage "{self.hash}" ({repr(e)})')
 
     async def _watchdog(self):
         """ Extremely important piece.
@@ -138,15 +140,18 @@ class Storage:
         Log.print(f'Storage: watchdog: execute shell command:\n{cmd}')
 
         stdout, _stderr = await p.communicate()
+        last_time = stdout.decode()
+        if not last_time:
+            return
 
-        time_delta = int(time.time()) - int(stdout.decode())
+        time_delta = int(time.time()) - int(last_time)
 
         # Check if saving is freezing
         if time_delta < Config.watchdog_interval:
             return
 
-        await self._kill()
+        await self._kill('watchdog')
 
         await asyncio.sleep(1)
 
-        Log.print(f'Storage: watchdog: restart "{self.hash}" storage')
+        Log.print(f'Storage: watchdog: restart "{self.hash}"')
