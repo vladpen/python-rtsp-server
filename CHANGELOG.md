@@ -1,3 +1,7 @@
+## [Unreleased] - 2022-04-06:
+
+Fix critical error in the "storage" module
+
 ## [Unreleased] - 2022-01-08:
 
 Default "storage_command" in global config.

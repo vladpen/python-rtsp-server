@@ -1,7 +1,7 @@
 import asyncio
+from datetime import datetime, timedelta
 import time
 from _config import Config
-# from shared import Shared
 from log import Log
 
 
@@ -74,11 +74,33 @@ class Storage:
         self.main_process.kill()
 
         # Delete all subdirectories older than "storage_period_days"
-        cmd = f'find {Config.storage_path} -type d -mtime +{Config.storage_period_days} -exec rm -rf {{}} \;'
-        proc = await asyncio.create_subprocess_shell(cmd)
-        await proc.wait()
+        try:
+            cfg = Config.cameras[self.hash]
+            await self._delete_old_dir(f'{Config.storage_path}/{cfg["path"]}')
+        except Exception:
+            Log.print(f'Storage: cleanup error "{self.hash}"')
 
-        Log.print(f'Storage: kill process {self.main_process.pid}, clean storage folder')
+        Log.print(f'Storage: process {self.main_process.pid} killed, "{self.hash}" folder cleaned')
+
+    async def _delete_old_dir(self, path):
+        cmd = f'ls -d {path}/*/'
+        p = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE)
+        stdout, _stderr = await p.communicate()
+        if not stdout:
+            return
+        oldest_dirname = (datetime.now() - timedelta(days=Config.storage_period_days)).strftime('%Y-%m-%d')
+
+        for row in stdout.decode().split('\n'):
+            dir = row[:-1].split('/')
+            # use comparison regarding a lexicographical order, not mtime
+            if not row or not dir[-1] or dir[-1] >= oldest_dirname:
+                continue
+            cmd = f'rm -rf {path}/{dir[-1]}'
+            proc = await asyncio.create_subprocess_shell(cmd)
+            await proc.wait()
 
     async def _mkdir(self, folder):
         """ Create storage folder if not exists
