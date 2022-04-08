@@ -19,7 +19,7 @@ Python 3.7+ is required. Optionally uses system-wide utilities for saving stream
 Compatible with Linux. Supports H.264, H.265 and H.265+ codecs.
 
 Tested with Hikvision DS-2CD2023 and Rubetek RV-3414 IP-cameras, using VLC as a client.
-There is a special application for this server [on GitHub](https://github.com/vladpen/cams).
+There is a special mobile app for this server [on GitHub](https://github.com/vladpen/cams).
 
 ### Installation:
 
