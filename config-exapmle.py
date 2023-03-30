@@ -41,7 +41,7 @@ class Config:
     # Attention!
     # All files and subdirectories older than "storage_period_days" in this folder will be deleted!
     storage_path = 'absolute path to video monitoring storage folder'
-    storage_command = 'ffmpeg -i {url} -c copy -v warning {filename}.mkv'
+    storage_command = 'ffmpeg -i {url} -c copy -v fatal {filename}.mkv'
     storage_fragment_secs = 600
     storage_period_days = 14
     storage_enable = False
