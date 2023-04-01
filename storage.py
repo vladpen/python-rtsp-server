@@ -1,6 +1,6 @@
 import asyncio
-from datetime import datetime, timedelta
 import time
+from datetime import datetime, timedelta
 from _config import Config
 from log import Log
 
@@ -38,7 +38,10 @@ class Storage:
         else:
             raise RuntimeError('invalid "storage_command" in _config.py')
 
-        cmd = cmd.replace('{url}', cfg['url']).replace('{filename}', f'{path}/{filename}')
+        cmd = cmd.replace(
+            '{url}', cfg['url']).replace(
+            '{filename}', f'{path}/{filename}').replace(
+            '{storage_fragment_secs}', str(Config.storage_fragment_secs - 1))
         try:
             _done, pending = await asyncio.wait(
                 [asyncio.create_task(self._execute(cmd))],
@@ -48,7 +51,7 @@ class Storage:
             for t in pending:
                 t.cancel()
         finally:
-            await self._kill('fragment saved')
+            await self._kill('fragment')
 
     async def _execute(self, cmd):
         """ Run given cmd in background
@@ -57,19 +60,18 @@ class Storage:
             cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE)
-
-        Log.print(f'Storage: execute shell command:\n{cmd}')
-
         _stdout, stderr = await self._main_process.communicate()
         if stderr:
-            Log.print(f"Storage: ERROR: can't execute command ({self._hash}):\n{cmd} ({stderr.decode()})")
-            await asyncio.sleep(1)
+            self._main_process = None
+            Log.print(f'Storage: ERROR: can\'t create process for "{self._hash}" ({stderr.decode().strip()})')
+            await asyncio.sleep(5)
+        else:
+            Log.print(f'Storage: process {self._main_process.pid} for "{self._hash}" created')
 
     async def _kill(self, msg):
         """ Kill subprocess(es) and clean old storage files
         """
         if not self._main_process:
-            Log.print(f'Storage: kill ERROR: empty main process for "{self._hash}" ({msg})')
             return
         # Main process may call subprocess(es), kill them all.
         # For example, we can list processes for openRTSP:
@@ -77,16 +79,22 @@ class Storage:
         cmd = f"pkill -TERM -P {int(self._main_process.pid)}"  # kill by parent ID
         p = await asyncio.create_subprocess_shell(cmd)
         await p.wait()
-        self._main_process.kill()
+
+        try:
+            self._main_process.kill()
+            Log.print(f'Storage: {msg}: process {self._main_process.pid} for "{self._hash}" killed')
+            self._main_process = None
+        except Exception as e:
+            Log.print(f'Storage: {msg}: ERROR: can\'t kill process {self._main_process.pid} for "{self._hash}"'
+                      f' ({repr(e)})')
 
         # Delete all subdirectories older than "storage_period_days"
         try:
             cfg = Config.cameras[self._hash]
             await self._delete_old_dir(f'{Config.storage_path}/{cfg["path"]}')
+            Log.print(f'Storage: {msg}: "{self._hash}" folder cleaned')
         except Exception as e:
-            Log.print(f'Storage: cleanup ERROR "{self._hash}" ({repr(e)})')
-
-        Log.print(f'Storage: process {self._main_process.pid} killed, "{self._hash}" folder cleaned ({msg})')
+            Log.print(f'Storage: {msg}: cleanup ERROR "{self._hash}" ({repr(e)})')
 
     async def _delete_old_dir(self, path):
         cmd = f'ls -d {path}/*/'
@@ -141,7 +149,7 @@ class Storage:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE)
 
-        Log.print(f'Storage: watchdog: execute shell command:\n{cmd}')
+        Log.print(f'Storage: watchdog: check "{self._hash}" folder ...')
 
         stdout, _stderr = await p.communicate()
         last_time = stdout.decode()
