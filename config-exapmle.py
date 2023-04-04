@@ -9,8 +9,8 @@ class Config:
     # Camera(s) settings.
     #    * The keys of this dictionary will be called "camera hash".
     #    * "path" can be used for the storage.
-    #    * "url" must contains at least <protocol>://<host>:<port>
-    #    * Optional: "storage_command" must contains two pairs of parentheses (for URL and output file name).
+    #    * "url" must contains at least IP address or host name
+    #    * Optional: "storage_command" must contains at least two pairs of parentheses (for URL and output file name).
     #       Overrides the same named command from the "storage" section.
     #       Examples:
     #           ffmpeg -i {url} -c copy {filename}.mkv
@@ -21,7 +21,7 @@ class Config:
     cameras = {
         'some-URL-compatible-string/including-UTF-characters': {
             'path': 'some folder in the storage_path',
-            'url': 'rtsp://<login>:<password>@<host>:554/<uri>',
+            'url': '[rtsp://][<login>:<password>@]<IP or host name>[:554][/<uri>]',
             # 'storage_command': 'any *nix command for saving rtsp stream to a file',
         },
     }

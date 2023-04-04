@@ -106,7 +106,7 @@ class Client:
         except Exception:
             pass
 
-        del(clients[self.session_id])
+        del clients[self.session_id]
 
         Log.write(f'Client closed [{self.camera_hash}] [{self.session_id}] [{self.host}]', self.host)
 

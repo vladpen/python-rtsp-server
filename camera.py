@@ -68,7 +68,6 @@ class Camera:
     async def play(self):
         """ Start playing and proxy the stream to all connected clients
         """
-
         cmd = (
             'PLAY',
             self.url['url'],
@@ -240,7 +239,7 @@ class Camera:
     def _get_track_ids(self, reply):
         """ Search track ID in rtsp reply
         """
-        track_ids = re.findall(r'\na=control:.*?(track.*?\d)', reply, re.DOTALL)
+        track_ids = re.findall(r'\na=control:.*?((?:track|stream).*?\d)', reply, re.DOTALL)
         if not track_ids:
             raise RuntimeError('Invalid track ID in reply')
         return track_ids
@@ -276,15 +275,19 @@ class Camera:
     def _parse_url(self, url):
         """ Get URL components
         """
-        parsed_url = re.match(r'(rtsps?)://((.+?):([^@]+)@)?(.+?):(\d+)(.+)', url)
+        rex = r'^((.+)?://)?((.+?)(:(.+))?@)?(.+?)(:(\d+))?(/.*)?$'
+        parsed_url = re.match(rex, url)
         if not parsed_url:
             raise RuntimeError('Invalid rtsp url')
-        return {
-            'login': parsed_url.group(3),
-            'password': parsed_url.group(4),
-            'host': parsed_url.group(5),
-            'tcp_port': int(parsed_url.group(6)),
-            'url': url.replace(f'{parsed_url.group(2)}:{parsed_url.group(3)}@', '')}
+        res = {
+            'scheme': parsed_url.group(2) or 'rtsp',
+            'login': parsed_url.group(4) or '',
+            'password': parsed_url.group(6) or '',
+            'host': parsed_url.group(7),
+            'tcp_port': int(parsed_url.group(9) or 554),
+            'path': parsed_url.group(10) or ''}
+        res['url'] = f'{res["scheme"]}://{res["host"]}:{res["tcp_port"]}{res["path"]}'
+        return res
 
     async def _start_udp_server(self, idx):
         """ Create datagram endpoint
@@ -309,7 +312,7 @@ class Camera:
 
 
 class CameraUdpProtocol(asyncio.DatagramProtocol):
-    """ This callback function will be called when connection to the camera is made
+    """ This callback will be called when connection to the camera is made
     """
     def __init__(self, camera_hash, idx):
         self.hash = camera_hash
