@@ -9,7 +9,7 @@ class Config:
     # Camera(s) settings.
     #    * The keys of this dictionary will be called "camera hash".
     #    * "path" can be used for the storage.
-    #    * "url" must contains at least IP address or host name
+    #    * "url" must contains at least <protocol>://<host>
     #    * Optional: "storage_command" must contains at least two pairs of parentheses (for URL and output file name).
     #       Overrides the same named command from the "storage" section.
     #       Examples:
@@ -21,7 +21,7 @@ class Config:
     cameras = {
         'some-URL-compatible-string/including-UTF-characters': {
             'path': 'some folder in the storage_path',
-            'url': '[rtsp://][<login>:<password>@]<IP or host name>[:554][/<uri>]',
+            'url': 'rtsp://[<login>:<password>@]<IP or host name>[:554][/<uri>]',
             # 'storage_command': 'any *nix command for saving rtsp stream to a file',
         },
     }
@@ -29,7 +29,7 @@ class Config:
     # Force UDP or TCP protocol globally
     tcp_mode = False
 
-    # Limit connections from the web. Set to 0 for unlimit connections
+    # Limit connections from the web. Set to 0 for unlimited connections
     web_limit = 2
 
     # Check UDP traffic from cameras, secs

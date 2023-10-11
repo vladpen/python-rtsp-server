@@ -275,7 +275,7 @@ class Camera:
     def _parse_url(self, url):
         """ Get URL components
         """
-        rex = r'^((.+)?://)?((.+?)(:(.+))?@)?(.+?)(:(\d+))?(/.*)?$'
+        rex = r'^((.+)://)?((.+?)(:(.+))?@)?(.+?)(:(\d+))?(/.*)?$'
         parsed_url = re.match(rex, url)
         if not parsed_url:
             raise RuntimeError('Invalid rtsp url')
