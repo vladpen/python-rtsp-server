@@ -9,14 +9,14 @@ class Config:
     # Camera(s) settings.
     #    * The keys of this dictionary will be called "camera hash".
     #    * "path" can be used for the storage.
-    #    * "url" must contains at least <protocol>://<host>
-    #    * Optional: "storage_command" must contains at least two pairs of parentheses (for URL and output file name).
+    #    * "url" must contain at least <protocol>://<host>
+    #    * Optional: "storage_command" must contain at least two pairs of parentheses (for URL and output file name).
     #       Overrides the same named command from the "storage" section.
     #       Examples:
     #           ffmpeg -i {url} -c copy {filename}.mkv
     #           mencoder {url} -ovc copy -o {filename}.avi
     #           openRTSP -b 10000000 -i -w 1920 -h 1080 -f 15 {url} > {filename}.avi
-    #       Note that these utilities aren't included an must be installed yourself.
+    #       Note that these utilities aren't included and must be installed yourself.
     #
     cameras = {
         'some-URL-compatible-string/including-UTF-characters': {

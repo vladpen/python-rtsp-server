@@ -29,7 +29,7 @@ class Storage:
         cfg = Config.cameras[self._hash]
         path = f'{Config.storage_path}/{cfg["path"]}/{dirname}'
 
-        await self._mkdir(path)
+        await _mkdir(path)
 
         if 'storage_command' in cfg and cfg['storage_command']:
             cmd = cfg['storage_command']
@@ -91,37 +91,10 @@ class Storage:
         # Delete all subdirectories older than "storage_period_days"
         try:
             cfg = Config.cameras[self._hash]
-            await self._delete_old_dir(f'{Config.storage_path}/{cfg["path"]}')
+            await _delete_old_dir(f'{Config.storage_path}/{cfg["path"]}')
             Log.print(f'Storage: {msg}: "{self._hash}" folder cleaned')
         except Exception as e:
             Log.print(f'Storage: {msg}: cleanup ERROR "{self._hash}" ({repr(e)})')
-
-    async def _delete_old_dir(self, path):
-        cmd = f'ls -d {path}/*/'
-        p = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE)
-        stdout, _stderr = await p.communicate()
-        if not stdout:
-            return
-        oldest_dirname = (datetime.now() - timedelta(days=Config.storage_period_days)).strftime('%Y-%m-%d')
-
-        for row in stdout.decode().split('\n'):
-            dir = row[:-1].split('/')
-            # use comparison regarding a lexicographical order, not mtime
-            if not row or not dir[-1] or dir[-1] >= oldest_dirname:
-                continue
-            cmd = f'rm -rf {path}/{dir[-1]}'
-            proc = await asyncio.create_subprocess_shell(cmd)
-            await proc.wait()
-
-    async def _mkdir(self, folder):
-        """ Create storage folder if not exists
-        """
-        cmd = f'mkdir -p {folder}'
-        proc = await asyncio.create_subprocess_shell(cmd)
-        await proc.wait()
 
     async def watchdog(self):
         """ Infinite loop for checking camera(s) availability
@@ -167,3 +140,34 @@ class Storage:
         await asyncio.sleep(1)
 
         Log.print(f'Storage: watchdog: restart "{self._hash}"')
+
+
+async def _mkdir(folder):
+    """ Create storage folder if not exists
+    """
+    cmd = f'mkdir -p {folder}'
+    proc = await asyncio.create_subprocess_shell(cmd)
+    await proc.wait()
+
+
+async def _delete_old_dir(path):
+    cmd = f'ls -d {path}/*/'
+    p = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE)
+    stdout, _stderr = await p.communicate()
+    if not stdout:
+        return
+    oldest_dirname = (datetime.now() - timedelta(days=Config.storage_period_days)).strftime('%Y-%m-%d')
+
+    for row in stdout.decode().split('\n'):
+        if not row:
+            continue
+        dirname = row[:-1].split('/')[-1]
+        # use comparison regarding a lexicographical order, not mtime
+        if not dirname or dirname >= oldest_dirname:
+            continue
+        cmd = f'rm -rf {path}/{dirname}'
+        proc = await asyncio.create_subprocess_shell(cmd)
+        await proc.wait()

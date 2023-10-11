@@ -36,12 +36,12 @@ class Client:
         """
         try:
             ask = data.decode()
-        except Exception:
+        except (Exception,):
             Log.print(f"Client: warning: can't decode this ask, skipped:\n{data}")
             return
 
         option = await self._request(ask)
-        self.session_id = self._get_session_id(ask)
+        self.session_id = _get_session_id(ask)
 
         if option == 'OPTIONS':
             await self._response('Public: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY')
@@ -103,7 +103,7 @@ class Client:
             if not self.writer.transport.is_closing():
                 self.writer.close()
                 await self.writer.wait_closed()
-        except Exception:
+        except (Exception,):
             pass
 
         del clients[self.session_id]
@@ -154,8 +154,8 @@ class Client:
         if not res:
             raise RuntimeError('invalid ask')
 
-        self.cseq = self._get_cseq(ask)
-        self.user_agent = self._get_user_agent(ask)
+        self.cseq = _get_cseq(ask)
+        self.user_agent = _get_user_agent(ask)
 
         option = res.group(1)
 
@@ -190,31 +190,6 @@ class Client:
 
         Log.print(f'~~~ Client: write\n{reply}')
 
-    def _get_cseq(self, ask):
-        """ Search CSeq in rtsp ask
-        """
-        res = re.match(r'.+?\r\nCSeq: (\d+)', ask, re.DOTALL)
-        if not res:
-            raise RuntimeError('invalid incoming CSeq')
-        return int(res.group(1))
-
-    def _get_session_id(self, ask):
-        """ Search session ID in rtsp ask
-        """
-        res = re.match(r'.+?\nSession: *([^;\r\n]+)', ask, re.DOTALL)
-        if res:
-            return res.group(1).strip()
-
-        return ''.join(choices(string.ascii_lowercase + string.digits, k=9))
-
-    def _get_ports(self, ask):
-        """ Search port numbers in rtsp ask
-        """
-        res = re.match(r'.+?\nTransport:[^\n]+client_port=(\d+)-(\d+)', ask, re.DOTALL)
-        if not res:
-            raise RuntimeError('invalid transport ports')
-        return [int(res.group(1)), int(res.group(2))]
-
     def _get_transport_line(self, ask):
         """ Search "interleaved" channels for TCP mode or client ports for UDP one
             Returns "transport" string
@@ -224,7 +199,7 @@ class Client:
             channel = res.group(1) if res else '0-1'
             return f'Transport: RTP/AVP/TCP;unicast;interleaved={channel}'
 
-        udp_ports = self._get_ports(ask)
+        udp_ports = _get_ports(ask)
         idx = 0 if not self.udp_ports else 1
         self.udp_ports[idx] = udp_ports
 
@@ -256,37 +231,21 @@ class Client:
             'a=control:track2'
         return res
 
-    def _get_user_agent(self, ask):
-        """ Search User-Agent in rtsp ask
-            [ -~] means any ASCII character from the space to the tilde
-        """
-        res = re.match(r'.+?\r\nUser-Agent: ([ -~]+)\r\n', ask, re.DOTALL + re.IGNORECASE)
-        if not res:
-            return 'unknown user agent'
-        return res.group(1)
-
     async def _check_web_limit(self):
         """ Just drop old "external" connections
         """
-        if not Config.web_limit or self._get_client_type(self.host) == 'local':
+        if not Config.web_limit or _get_client_type(self.host) == 'local':
             return
         web_sessions = []
         clients = Shared.data[self.camera_hash]['clients']
         for session_id, client in clients.items():
-            if self._get_client_type(client.host) == 'web':
+            if _get_client_type(client.host) == 'web':
                 web_sessions.append(session_id)
         if len(web_sessions) > Config.web_limit:
             ws = web_sessions[:-Config.web_limit]
             for session_id in ws:
                 Log.write('Client: web limit exceeded, close old connection')
                 await clients[session_id].close()
-
-    def _get_client_type(self, host):
-        if host == '127.0.0.1' \
-            or host == 'localhost' \
-                or (host.startswith('192.168.') and host != Config.local_ip):
-            return 'local'
-        return 'web'
 
 
 async def _handle(reader, writer):
@@ -311,3 +270,49 @@ async def _handle(reader, writer):
             Log.print(f"Client: error: can't handle request from {client.host}: {e}")
             await client.close()
             return
+
+
+def _get_session_id(ask):
+    """ Search session ID in rtsp ask
+    """
+    res = re.match(r'.+?\nSession: *([^;\r\n]+)', ask, re.DOTALL)
+    if res:
+        return res.group(1).strip()
+
+    return ''.join(choices(string.ascii_lowercase + string.digits, k=9))
+
+
+def _get_cseq(ask):
+    """ Search CSeq in rtsp ask
+    """
+    res = re.match(r'.+?\r\nCSeq: (\d+)', ask, re.DOTALL)
+    if not res:
+        raise RuntimeError('invalid incoming CSeq')
+    return int(res.group(1))
+
+
+def _get_user_agent(ask):
+    """ Search User-Agent in rtsp ask
+        [ -~] means any ASCII character from the space to the tilde
+    """
+    res = re.match(r'.+?\r\nUser-Agent: ([ -~]+)\r\n', ask, re.DOTALL + re.IGNORECASE)
+    if not res:
+        return 'unknown user agent'
+    return res.group(1)
+
+
+def _get_ports(ask):
+    """ Search port numbers in rtsp ask
+    """
+    res = re.match(r'.+?\nTransport:[^\n]+client_port=(\d+)-(\d+)', ask, re.DOTALL)
+    if not res:
+        raise RuntimeError('invalid transport ports')
+    return [int(res.group(1)), int(res.group(2))]
+
+
+def _get_client_type(host):
+    if host == '127.0.0.1' \
+        or host == 'localhost' \
+            or (host.startswith('192.168.') and host != Config.local_ip):
+        return 'local'
+    return 'web'

@@ -10,12 +10,14 @@ from log import Log
 class Camera:
     def __init__(self, camera_hash):
         self.hash = camera_hash
-        self.url = self._parse_url(Config.cameras[camera_hash]['url'])
+        self.url = _parse_url(Config.cameras[camera_hash]['url'])
         self.tcp_task = False
         self.udp_ports, self.track_ids = [], []
         self.description = {}
         self.session_id, self.rtp_info, self.realm, self.nonce = None, None, None, None
         self.cseq = 1
+        self.reader = None
+        self.writer = None
 
     async def connect(self):
         """ Open TCP socket and connect to the camera
@@ -36,23 +38,23 @@ class Camera:
             'Accept: application/sdp')
 
         if code == 401:
-            self.realm, self.nonce = self._get_auth_params(reply)
+            self.realm, self.nonce = _get_auth_params(reply)
 
             reply, code = await self._request(
                 'DESCRIBE',
                 self.url['url'],
                 'Accept: application/sdp')
 
-        self.description = self._get_description(reply)
+        self.description = _get_description(reply)
 
-        self.track_ids = self._get_track_ids(reply)
+        self.track_ids = _get_track_ids(reply)
 
         reply, code = await self._request(
             'SETUP',
             f'{self.url["url"]}/{self.track_ids[0]}',
             self._get_transport_line(0))
 
-        self.session_id = self._get_session_id(reply)
+        self.session_id = _get_session_id(reply)
 
         if len(self.track_ids) > 1:
             await self._request(
@@ -81,13 +83,13 @@ class Camera:
             if not self.tcp_task:
 
                 reply, code = await self._request(*cmd)
-                self.rtp_info = self._get_rtp_info(reply)
+                self.rtp_info = _get_rtp_info(reply)
 
                 self.tcp_task = asyncio.create_task(self._interleave())
         else:
             reply, code = await self._request(*cmd)
 
-            self.rtp_info = self._get_rtp_info(reply)
+            self.rtp_info = _get_rtp_info(reply)
 
             await self._start_udp_server(0)
 
@@ -159,15 +161,6 @@ class Camera:
         self.writer.write(cmd.encode())
         self.cseq += 1
 
-    def _get_auth_params(self, reply):
-        """ Search digest auth realm and nonce in reply
-        """
-        realm_nonce = re.match(r'.+?\nWWW-Authenticate:.+?realm="(.+?)", ?nonce="(.+?)"', reply, re.DOTALL)
-        if not realm_nonce:
-            raise RuntimeError('Invalid digest auth reply')
-
-        return realm_nonce.group(1), realm_nonce.group(2)
-
     def _get_auth_line(self, option):
         """ Encode auth "response" hash
         """
@@ -180,70 +173,6 @@ class Camera:
             f'realm="{self.realm}" nonce="{self.nonce}", uri="{self.url["url"]}", response="{response}"'
         return line
 
-    def _get_description(self, reply):
-        """ Search SDP (Session Description Protocol) in rtsp reply
-        """
-        blocks = reply.split('\r\n\r\n', 2)
-        if len(blocks) < 2:
-            raise RuntimeError('Invalid DESCRIBE reply')
-
-        sdp = blocks[1].strip()
-
-        details = {'video': {}, 'audio': {}}
-
-        res = re.match(r'.+?\nm=video (.+?)\r\n', sdp, re.DOTALL)
-        if res:
-            details['video'] = {'media': res.group(1), 'bandwidth': '', 'rtpmap': '', 'format': ''}
-
-            res = re.match(r'.+?\nm=video .+?\nb=([^\r\n]+)', sdp, re.DOTALL)
-            if res:
-                details['video']['bandwidth'] = res.group(1)
-
-            res = re.match(r'.+?\nm=video .+?\na=rtpmap:([^\r\n]+)/([^\r\n]+)', sdp, re.DOTALL)
-            if res:
-                details['video']['rtpmap'] = res.group(1) + '/' + res.group(2)
-                details['video']['clk_freq'] = int(res.group(2))
-
-            res = re.match(r'.+?\nm=video .+?\na=fmtp:([^\r\n]+)', sdp, re.DOTALL)
-            if res:
-                details['video']['format'] = res.group(1)
-
-        res = re.match(r'.+?\nm=audio (.+?)\r\n', sdp, re.DOTALL)
-        if res:
-            details['audio'] = {'media': res.group(1), 'rtpmap': ''}
-
-            res = re.match(r'.+?\nm=audio .+?\na=rtpmap:([^\r\n]+)/([^\r\n]+)', sdp, re.DOTALL)
-            if res:
-                details['audio']['rtpmap'] = res.group(1) + '/' + res.group(2)
-                details['audio']['clk_freq'] = int(res.group(2))
-
-        return details
-
-    def _get_rtp_info(self, reply):
-        """ Search "RTP-Info" string in rtsp reply
-        """
-        if not reply:
-            return
-        res = re.match(r'.+?\r\n(RTP-Info: .+?)\r\n', reply, re.DOTALL)
-        if not res:
-            raise RuntimeError('Invalid RTP-Info')
-        rtp_info = res.group(1)
-
-        seq = re.findall(r';seq=(\d+)', rtp_info)
-        rtptime = re.findall(r';rtptime=(\d+)', rtp_info)
-        if not seq or not rtptime:
-            raise RuntimeError('Invalid RTP-Info')
-
-        return {'seq': seq, 'rtptime': rtptime, 'starttime': time.time()}
-
-    def _get_track_ids(self, reply):
-        """ Search track ID in rtsp reply
-        """
-        track_ids = re.findall(r'\na=control:.*?((?:track|stream).*?\d)', reply, re.DOTALL)
-        if not track_ids:
-            raise RuntimeError('Invalid track ID in reply')
-        return track_ids
-
     def _get_transport_line(self, idx):
         """ Build new "Transport" line for given track index
         """
@@ -255,14 +184,6 @@ class Camera:
         return 'Transport: RTP/AVP;unicast;' \
             f'client_port={self.udp_ports[idx][0]}-{self.udp_ports[idx][1]}'
 
-    def _get_session_id(self, reply):
-        """ Search session ID in rtsp reply
-        """
-        res = re.match(r'.+?\nSession: *([^;]+)', reply, re.DOTALL)
-        if not res:
-            raise RuntimeError('Invalid session ID')
-        return res.group(1)
-
     def _get_self_udp_ports(self):
         """ Calculate port number from free user ports range
         """
@@ -271,23 +192,6 @@ class Camera:
         return [
             [start_port + idx, start_port + idx + 1],
             [start_port + idx + 2, start_port + idx + 3]]
-
-    def _parse_url(self, url):
-        """ Get URL components
-        """
-        rex = r'^((.+)://)?((.+?)(:(.+))?@)?(.+?)(:(\d+))?(/.*)?$'
-        parsed_url = re.match(rex, url)
-        if not parsed_url:
-            raise RuntimeError('Invalid rtsp url')
-        res = {
-            'scheme': parsed_url.group(2) or 'rtsp',
-            'login': parsed_url.group(4) or '',
-            'password': parsed_url.group(6) or '',
-            'host': parsed_url.group(7),
-            'tcp_port': int(parsed_url.group(9) or 554),
-            'path': parsed_url.group(10) or ''}
-        res['url'] = f'{res["scheme"]}://{res["host"]}:{res["tcp_port"]}{res["path"]}'
-        return res
 
     async def _start_udp_server(self, idx):
         """ Create datagram endpoint
@@ -317,6 +221,7 @@ class CameraUdpProtocol(asyncio.DatagramProtocol):
     def __init__(self, camera_hash, idx):
         self.hash = camera_hash
         self.idx = idx
+        self.transport = None
 
     def connection_made(self, transport):
         self.transport = transport
@@ -328,3 +233,107 @@ class CameraUdpProtocol(asyncio.DatagramProtocol):
 
         for _sid, client in Shared.data[self.hash]['clients'].items():
             self.transport.sendto(data, (client.host, client.udp_ports[self.idx][0]))
+
+
+def _parse_url(url):
+    """ Get URL components
+    """
+    rex = r'^((.+)://)?((.+?)(:(.+))?@)?(.+?)(:(\d+))?(/.*)?$'
+    parsed_url = re.match(rex, url)
+    if not parsed_url:
+        raise RuntimeError('Invalid rtsp url')
+    res = {
+        'scheme': parsed_url.group(2) or 'rtsp',
+        'login': parsed_url.group(4) or '',
+        'password': parsed_url.group(6) or '',
+        'host': parsed_url.group(7),
+        'tcp_port': int(parsed_url.group(9) or 554),
+        'path': parsed_url.group(10) or ''}
+    res['url'] = f'{res["scheme"]}://{res["host"]}:{res["tcp_port"]}{res["path"]}'
+    return res
+
+
+def _get_auth_params(reply):
+    """ Search digest auth realm and nonce in reply
+    """
+    realm_nonce = re.match(r'.+?\nWWW-Authenticate:.+?realm="(.+?)", ?nonce="(.+?)"', reply, re.DOTALL)
+    if not realm_nonce:
+        raise RuntimeError('Invalid digest auth reply')
+
+    return realm_nonce.group(1), realm_nonce.group(2)
+
+
+def _get_description(reply):
+    """ Search SDP (Session Description Protocol) in rtsp reply
+    """
+    blocks = reply.split('\r\n\r\n', 2)
+    if len(blocks) < 2:
+        raise RuntimeError('Invalid DESCRIBE reply')
+
+    sdp = blocks[1].strip()
+
+    details = {'video': {}, 'audio': {}}
+
+    res = re.match(r'.+?\nm=video (.+?)\r\n', sdp, re.DOTALL)
+    if res:
+        details['video'] = {'media': res.group(1), 'bandwidth': '', 'rtpmap': '', 'format': ''}
+
+        res = re.match(r'.+?\nm=video .+?\nb=([^\r\n]+)', sdp, re.DOTALL)
+        if res:
+            details['video']['bandwidth'] = res.group(1)
+
+        res = re.match(r'.+?\nm=video .+?\na=rtpmap:([^\r\n]+)/([^\r\n]+)', sdp, re.DOTALL)
+        if res:
+            details['video']['rtpmap'] = res.group(1) + '/' + res.group(2)
+            details['video']['clk_freq'] = int(res.group(2))
+
+        res = re.match(r'.+?\nm=video .+?\na=fmtp:([^\r\n]+)', sdp, re.DOTALL)
+        if res:
+            details['video']['format'] = res.group(1)
+
+    res = re.match(r'.+?\nm=audio (.+?)\r\n', sdp, re.DOTALL)
+    if res:
+        details['audio'] = {'media': res.group(1), 'rtpmap': ''}
+
+        res = re.match(r'.+?\nm=audio .+?\na=rtpmap:([^\r\n]+)/([^\r\n]+)', sdp, re.DOTALL)
+        if res:
+            details['audio']['rtpmap'] = res.group(1) + '/' + res.group(2)
+            details['audio']['clk_freq'] = int(res.group(2))
+
+    return details
+
+
+def _get_track_ids(reply):
+    """ Search track ID in rtsp reply
+    """
+    track_ids = re.findall(r'\na=control:.*?((?:track|stream).*?\d)', reply, re.DOTALL)
+    if not track_ids:
+        raise RuntimeError('Invalid track ID in reply')
+    return track_ids
+
+
+def _get_session_id(reply):
+    """ Search session ID in rtsp reply
+    """
+    res = re.match(r'.+?\nSession: *([^;]+)', reply, re.DOTALL)
+    if not res:
+        raise RuntimeError('Invalid session ID')
+    return res.group(1)
+
+
+def _get_rtp_info(reply):
+    """ Search "RTP-Info" string in rtsp reply
+    """
+    if not reply:
+        return
+    res = re.match(r'.+?\r\n(RTP-Info: .+?)\r\n', reply, re.DOTALL)
+    if not res:
+        raise RuntimeError('Invalid RTP-Info')
+    rtp_info = res.group(1)
+
+    seq = re.findall(r';seq=(\d+)', rtp_info)
+    rtptime = re.findall(r';rtptime=(\d+)', rtp_info)
+    if not seq or not rtptime:
+        raise RuntimeError('Invalid RTP-Info')
+
+    return {'seq': seq, 'rtptime': rtptime, 'starttime': time.time()}
