@@ -44,6 +44,7 @@ class Config:
     storage_period_days = 14
     storage_fragment_secs = 600
     storage_command = 'ffmpeg -i {url} -c copy -v fatal -t {storage_fragment_secs} {filename}.mkv'
+    # Use "-rtsp_transport tcp" flag for switching to TCP mode
     storage_enable = False
 
     debug = True
