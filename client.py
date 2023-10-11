@@ -50,7 +50,7 @@ class Client:
             sdp = self._get_description()
             await self._response(
                 'Content-Type: application/sdp',
-                f'Content-Length: {len(sdp) + 2}',
+                f'Content-Length: {len(sdp) + 4}',
                 '',
                 sdp)
 
