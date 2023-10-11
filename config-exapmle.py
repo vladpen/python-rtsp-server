@@ -43,8 +43,10 @@ class Config:
     storage_path = 'absolute path to video monitoring storage folder'
     storage_period_days = 14
     storage_fragment_secs = 600
+    # UDP mode:
     storage_command = 'ffmpeg -i {url} -c copy -v fatal -t {storage_fragment_secs} {filename}.mkv'
-    # Use "-rtsp_transport tcp" flag for switching to TCP mode
+    # TCP mode:
+    # storage_command = 'ffmpeg -rtsp_transport tcp -i {url} -c copy -v fatal -t {storage_fragment_secs} {filename}.mkv'
     storage_enable = False
 
     debug = True
