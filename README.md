@@ -66,4 +66,4 @@ sudo systemctl start python-rtsp-server
 
 Discussion: [habr.com/ru/post/597363](https://habr.com/ru/post/597363).
 
-*Copyright (c) 2021-2022 vladpen under MIT license. Use it with absolutely no warranty.*
+*Copyright (c) 2021-2024 vladpen under MIT license. Use it with absolutely no warranty.*
