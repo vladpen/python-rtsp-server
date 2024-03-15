@@ -24,7 +24,7 @@ class Client:
     async def listen():
         """ One listener for all clients
         """
-        host = '0.0.0.0'
+        host = Config.rtsp_host if hasattr(Config, 'rtsp_host') else '0.0.0.0'
         Log.write(f'Client: start listening {host}:{Config.rtsp_port}')
 
         server = await asyncio.start_server(_handle, host, Config.rtsp_port)

@@ -2,7 +2,8 @@ import socket
 
 
 class Config:
-    rtsp_port = 4554
+    rtsp_host = '0.0.0.0'  # Client listener host
+    rtsp_port = 4554       # Client listener port
     start_udp_port = 5550
     local_ip = socket.gethostbyname(socket.gethostname())
 
