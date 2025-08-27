@@ -170,7 +170,8 @@ class Camera:
         ha2 = md5(f'{option}:{self.url["url"]}'.encode('utf-8')).hexdigest()
         response = md5(f'{ha1}:{self.nonce}:{ha2}'.encode('utf-8')).hexdigest()
         line = f'Authorization: Digest username="{self.url["login"]}", ' \
-            f'realm="{self.realm}" nonce="{self.nonce}", uri="{self.url["url"]}", response="{response}"'
+            f'realm="{self.realm}", algorithm="MD5", nonce="{self.nonce}", ' \
+            f'uri="{self.url["url"]}", response="{response}"'
         return line
 
     def _get_transport_line(self, idx):
@@ -306,7 +307,7 @@ def _get_description(reply):
 def _get_track_ids(reply):
     """ Search track ID in rtsp reply
     """
-    track_ids = re.findall(r'\na=control:.*?((?:track|stream).*?\d)', reply, re.DOTALL)
+    track_ids = re.findall(r'\na=control:.*?((?:track|stream).*?\d)', reply)
     if not track_ids:
         raise RuntimeError('Invalid track ID in reply')
     return track_ids
